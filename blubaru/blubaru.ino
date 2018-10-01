@@ -137,16 +137,16 @@ void setup() {
   bool prepared = false;
   while (prepared == false) {
     FlushInput();
+    digitalWrite(kLED1Pin, HIGH); // Light LED1 to indicate BT reset
     ResetBTModule();  // Does nothing on first start since PwrEn not yet driven high.
-    digitalWrite(kLED1Pin, HIGH);
-    delay(500);  // Reset time measured around 445 ms
+    delay(500); // Reset time measured around 445 ms
     digitalWrite(kLED1Pin, LOW);
     digitalWrite(kPwrEnPin, HIGH); // Does nothing after reset since power already enabled?
-    digitalWrite(kLED2Pin, HIGH);
+    digitalWrite(kLED2Pin, HIGH); // Light LED2 to indicate we signaled the BT module to power on.
     delay(1900);  // Startup time measured around 1830 ms
     digitalWrite(kLED2Pin, LOW);
     const size_t charsRead = BT.readBytesUntil('\n', input, sizeof(input));
-    if (charsRead != sizeof(input) - 1) { // Something weird happened. Flash 3 times and restart the loop with a reset.
+    if (charsRead != sizeof(input) - 1) { // Something weird happened. Flash LED2 3 times and restart the loop with a reset.
       digitalWrite(kLED2Pin, HIGH);
       delay(200);
       digitalWrite(kLED2Pin, LOW);
@@ -162,7 +162,7 @@ void setup() {
     }
     if (strncmp(input, "CMD\r", 4) == 0) {
       prepared = true; // We're done
-    } else { // Flash once and restart the loop with a reset.
+    } else { // Didn't get CMD. Flash both LEDs once and restart the loop with a reset.
       digitalWrite(kLED1Pin, HIGH);
       digitalWrite(kLED2Pin, HIGH);
       delay(200);
