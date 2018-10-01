@@ -188,7 +188,7 @@ bool ValidateState(char *input) {
 
 
 void ResetMCU() {
-  cli();
+  /* cli();
   wdt_reset();
   /*
     WDTCR configuration:
@@ -198,7 +198,7 @@ void ResetMCU() {
     WDP2 = 0 :For 16ms Time-out
     WDP1 = 0 :For 16ms Time-out
     WDP0 = 0 :For 16ms Time-out
-  */
+  
   // Enter Watchdog Configuration mode:
   WDTCR |= (1 << WDCE) | (1 << WDE);
 
@@ -207,8 +207,16 @@ void ResetMCU() {
           (0 << WDP3) | (0 << WDP2) | (0 << WDP1) |
           (0 << WDP0);
   sei();
-  // begin an infinite loop of nothing until death
-  while (1) { }
+  */
+  // begin an infinite loop of angry LEDs until death by watchdog
+  while (1) { 
+    digitalWrite(kLED1Pin, HIGH);
+    digitalWrite(kLED2Pin, LOW);
+    delay(100);
+    digitalWrite(kLED1Pin, LOW);
+    digitalWrite(kLED2Pin, HIGH);
+    delay(100);
+  }
 }
 
 
