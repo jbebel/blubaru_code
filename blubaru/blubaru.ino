@@ -13,18 +13,16 @@
   3. BT module resets spontaneously, and CMD is in the buffer. Flush and send 'Q' again.
   Need to consider how to handle these at any point within the program.
   Can make use of the watchdog timer to reset the MCU on failures.
-  
-  Consider supporting operation with parts missing or broken. Notably, and unresponsive or
+
+  Consider supporting operation with parts missing or broken. Notably, an unresponsive or
   missing BT module should not prevent line-in from operating. Potentially also support
   no line_in audio switch.
-  
+
   For CMD mode, I can either:
   1. Leave it in CMD mode and disable SPP profile
   2. Disable SPP and allow for switching in and out of CMD mode for some error checking
   3. Enable SPP mode and write a serial debug mode for the module.
   For now, stick with 1.
-
-  Add a reset button to my schematic.
 
   Perform device configuration in setup(). Suspect with 4313 I will be able to use 115200,
   but if not, I can pull GPIO7 LOW to force 9600 and then reset. Check values and only set
@@ -79,21 +77,21 @@ void WatchdogSetup() {
   wdt_reset();
 
   /*
-  WDTCR configuration:
-  WDIE = 0: Interrupt Disable
-  WDE = 1 :Reset Enable
-  WDP3 = 1 :For 4000ms Time-out
-  WDP2 = 0 :For 4000ms Time-out
-  WDP1 = 0 :For 4000ms Time-out
-  WDP0 = 0 :For 4000ms Time-out
+    WDTCR configuration:
+    WDIE = 0: Interrupt Disable
+    WDE = 1 :Reset Enable
+    WDP3 = 1 :For 4000ms Time-out
+    WDP2 = 0 :For 4000ms Time-out
+    WDP1 = 0 :For 4000ms Time-out
+    WDP0 = 0 :For 4000ms Time-out
   */
   // Enter Watchdog Configuration mode:
   WDTCR |= (1 << WDCE) | (1 << WDE);
 
   // Set Watchdog settings:
   WDTCR = (0 << WDIE) | (1 << WDE) |
-  (1 << WDP3) | (0 << WDP2) | (0 << WDP1) |
-  (0 << WDP0);
+          (1 << WDP3) | (0 << WDP2) | (0 << WDP1) |
+          (0 << WDP0);
 
   sei();
 }
@@ -134,17 +132,21 @@ void setup() {
   digitalWrite(kCmdModePin, LOW);
   BT.begin(kBaudRate);
 
-  // delay(2000);  // So I can start the serial console
+  // delay(2000);  // For debugging: so I can start the serial console
   char input[5];
   bool prepared = false;
   while (prepared == false) {
     FlushInput();
-    ResetBTModule();
+    ResetBTModule();  // Does nothing on first start since PwrEn not yet driven high.
+    digitalWrite(kLED1Pin, HIGH);
     delay(500);  // Reset time measured around 445 ms
-    digitalWrite(kPwrEnPin, HIGH);
+    digitalWrite(kLED1Pin, LOW);
+    digitalWrite(kPwrEnPin, HIGH); // Does nothing after reset since power already enabled?
+    digitalWrite(kLED2Pin, HIGH);
     delay(1900);  // Startup time measured around 1830 ms
+    digitalWrite(kLED2Pin, LOW);
     const size_t charsRead = BT.readBytesUntil('\n', input, sizeof(input));
-    if (charsRead != sizeof(input) - 1) {
+    if (charsRead != sizeof(input) - 1) { // Something weird happened. Flash 3 times and restart the loop with a reset.
       digitalWrite(kLED2Pin, HIGH);
       delay(200);
       digitalWrite(kLED2Pin, LOW);
@@ -159,17 +161,19 @@ void setup() {
       continue;
     }
     if (strncmp(input, "CMD\r", 4) == 0) {
-      prepared = true;
-    } else {
+      prepared = true; // We're done
+    } else { // Flash once and restart the loop with a reset.
+      digitalWrite(kLED1Pin, HIGH);
       digitalWrite(kLED2Pin, HIGH);
       delay(200);
+      digitalWrite(kLED1Pin, LOW);
       digitalWrite(kLED2Pin, LOW);
     }
   }
   WatchdogSetup();
 }
 
-
+// Make sure we get 4 hex digits followed by \r
 bool ValidateState(char *input) {
   for (int i = 0; i < 4; i++) {
     if (!isHexadecimalDigit(input[i])) {
@@ -187,21 +191,21 @@ void ResetMCU() {
   cli();
   wdt_reset();
   /*
-  WDTCR configuration:
-  WDIE = 0: Interrupt Disable
-  WDE = 1 :Reset Enable
-  WDP3 = 0 :For 16ms Time-out
-  WDP2 = 0 :For 16ms Time-out
-  WDP1 = 0 :For 16ms Time-out
-  WDP0 = 0 :For 16ms Time-out
-  */  
+    WDTCR configuration:
+    WDIE = 0: Interrupt Disable
+    WDE = 1 :Reset Enable
+    WDP3 = 0 :For 16ms Time-out
+    WDP2 = 0 :For 16ms Time-out
+    WDP1 = 0 :For 16ms Time-out
+    WDP0 = 0 :For 16ms Time-out
+  */
   // Enter Watchdog Configuration mode:
   WDTCR |= (1 << WDCE) | (1 << WDE);
 
   // Set Watchdog settings:
   WDTCR = (0 << WDIE) | (1 << WDE) |
-  (0 << WDP3) | (0 << WDP2) | (0 << WDP1) |
-  (0 << WDP0);
+          (0 << WDP3) | (0 << WDP2) | (0 << WDP1) |
+          (0 << WDP0);
   sei();
   // begin an infinite loop of nothing until death
   while (1) { }
@@ -216,10 +220,11 @@ void ReadState(char *input, const size_t bufsize) {
     // Is it problematic setting this as a const now that I'm looping?
     const size_t charsRead = BT.readBytesUntil('\n', input, bufsize);
     // I wanted this inside ValidateState, but didn't want to pass charsRead.
-    if (charsRead != bufsize - 1) {
+    if (charsRead != bufsize - 1) { // Probably read nothing. Try again.
       continue;
     }
     if (ValidateState(input)) {
+      // We got our state in *input
       return;
     }
   }
