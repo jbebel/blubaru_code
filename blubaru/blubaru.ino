@@ -4,6 +4,8 @@
 
   My text-based bug tracker:
 
+  Watchdog timer doesn't seem to work. My reset loop is broken.
+
   The watchdog timer appears to interfere with the Pro Micro bootloader. It won't be a
   problem on the 4313, but it makes testing it here difficult.
 
@@ -66,8 +68,8 @@ const int kCmdModePin = 6;       // GPIO9 Drive low to enter command mode
 const int kLineInSensePin = 9;   // HIGH when something is in the line_in jack
 
 // Other Outputs
-const int kLED1Pin = 12;           // debug LED1
-const int kLED2Pin = 13;           // debug LED2
+const int kLED1Pin = 13;           // debug LED1 Orange
+const int kLED2Pin = 12;           // debug LED2 Yellow
 const int kLineInTriggerPin = 11; // BT:LOW line_in:HIGH
 const int kTriggerPin = 10;       // Enables audio output (HIGH)
 
@@ -108,6 +110,42 @@ void FlushInput() {
   while (BT.available() > 0) {
     BT.read();
   }
+}
+
+
+bool CheckSetting(char *key, char *value) {
+  char input[sizeof(value) + 6];
+  FlushInput();
+  BT.print("G");
+  BT.println(key);
+  const size_t charsRead = BT.readBytesUntil('\n', input, sizeof(value) + 6);
+  if (charsRead != sizeof(value) + 5) {
+    return false;
+  }
+  const char* result = &input[4];
+  if (strncmp(result, value, sizeof(value)) == 0) {
+    return true;
+  }
+  return false;
+}
+
+
+bool SetSetting(char *key, char *value) {
+  FlushInput();
+  BT.print("S");
+  BT.print(key);
+  BT.print(",");
+  BT.println(value);
+  char input[5];
+  const size_t charsRead = BT.readBytesUntil('\n', input, 4);
+  if (charsRead != 4) {
+    return false;
+  }
+  if (strncmp(input, "AOK\r", 4) == 0) {
+    return true;
+  }
+  return false;
+
 }
 
 
